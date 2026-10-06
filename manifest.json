@@ -1,7 +1,7 @@
 {
   "name": "HACCP Admin",
   "short_name": "HACCP Admin",
-  "start_url": "./index.html",
+  "start_url": "./index.html?app=admin2",
   "scope": "./",
   "display": "standalone",
   "background_color": "#1e8449",
@@ -19,5 +19,6 @@
       "type": "image/png",
       "purpose": "any maskable"
     }
-  ]
+  ],
+  "id": "./index.html?app=admin2"
 }
