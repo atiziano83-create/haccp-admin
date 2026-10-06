@@ -10,20 +10,24 @@ const firebaseConfig = {
     appId: "1:585663608757:web:e92845b6f14078461a0bfc",
 };
 
-// Hash SHA-256 della password admin (per ora la stessa del Listino B2B).
-const PASSWORD_HASH = "893b1f8fc0fcc0587bb2f02fa8df1ca3039b9c8deae23935b6b3243e97e857a0";
+// L'Admin entra con un vero account Firebase (email + password), creato
+// nella console Firebase. L'email e' fissa: sulla schermata di accesso
+// si scrive solo la password. La password NON e' scritta nel codice.
+const EMAIL_ADMIN = "admin@decagel-haccp.example";
 
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+// App Firebase con nome proprio ("admin"): cosi' l'accesso dell'Admin
+// resta separato da quello anonimo dell'app autisti, anche se girano
+// sullo stesso tablet (stesso sito, stessi dati del browser).
+const appAdmin = firebase.initializeApp(firebaseConfig, "admin");
+const auth = appAdmin.auth();
+const db = appAdmin.firestore();
 db.enablePersistence({ synchronizeTabs: true }).catch((errore) => {
     console.warn("Persistenza offline non attivata:", errore.code);
 });
 
-// Accesso anonimo: le regole di sicurezza richiedono un utente
-// autenticato (anche solo in modo anonimo) per leggere i dati.
-const accessoAnonimoPronto = firebase.auth().signInAnonymously().catch((errore) => {
-    console.error("Accesso anonimo non riuscito:", errore.code);
-});
+// Le richieste ai dati partono solo dopo l'accesso dell'Admin (vedi LOGIN):
+// nessun accesso anonimo qui.
+const accessoAnonimoPronto = Promise.resolve();
 
 function oraCorrenteHHMM() {
     const ora = new Date();
@@ -63,11 +67,6 @@ function mostraSchermo(id) {
     document.getElementById(id).classList.add("attiva");
 }
 
-async function calcolaHash(testo) {
-    const buffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(testo));
-    return Array.from(new Uint8Array(buffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 // ============================================================
 // LOGIN
 // ============================================================
@@ -76,17 +75,28 @@ document.getElementById("input-password").addEventListener("keydown", (evento) =
     if (evento.key === "Enter") eseguiLogin();
 });
 
+let dashboardAvviata = false;
+
 async function eseguiLogin() {
     const password = document.getElementById("input-password").value;
-    const hash = await calcolaHash(password);
     const erroreEl = document.getElementById("errore-login");
+    const bottone = document.getElementById("btn-login");
+    if (!password) return;
 
-    if (hash === PASSWORD_HASH) {
+    bottone.disabled = true;
+    try {
+        await auth.signInWithEmailAndPassword(EMAIL_ADMIN, password);
         erroreEl.style.display = "none";
-        sessionStorage.setItem("haccp_admin_ok", "1");
-        avviaDashboard();
-    } else {
+        document.getElementById("input-password").value = "";
+        // l'avvio della dashboard parte da onAuthStateChanged (sotto)
+    } catch (errore) {
+        console.warn("Accesso Admin non riuscito:", errore.code);
+        erroreEl.textContent = (errore.code === "auth/network-request-failed")
+            ? "Nessuna connessione, riprova."
+            : "Password errata, riprova.";
         erroreEl.style.display = "block";
+    } finally {
+        bottone.disabled = false;
     }
 }
 
@@ -971,15 +981,24 @@ document.getElementById("btn-elimina-cella-anagrafica").addEventListener("click"
 });
 
 // ============================================================
-// AVVIO: se la sessione ha già superato il login in questa scheda,
-// entra direttamente (evita di richiedere la password ad ogni click
-// se l'admin naviga avanti e indietro nella stessa sessione browser).
+// AVVIO: l'accesso resta valido su questo dispositivo finche' non si
+// esce. Se c'e' gia' un Admin collegato si entra direttamente.
 // ============================================================
-if (sessionStorage.getItem("haccp_admin_ok") === "1") {
-    avviaDashboard();
-} else {
-    mostraSchermo("schermo-login");
-}
+document.getElementById("btn-esci").addEventListener("click", () => {
+    auth.signOut();
+});
+
+auth.onAuthStateChanged((utente) => {
+    if (utente && !utente.isAnonymous) {
+        if (!dashboardAvviata) {
+            dashboardAvviata = true;
+            avviaDashboard();
+        }
+    } else {
+        dashboardAvviata = false;
+        mostraSchermo("schermo-login");
+    }
+});
 
 // ============================================================
 // REPORT MENSILE (da mostrare o stampare in caso di controlli)

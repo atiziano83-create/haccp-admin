@@ -1,4 +1,4 @@
-const NOME_CACHE = "haccp-admin-v3";
+const NOME_CACHE = "haccp-admin-v4";
 const FILE_DA_SALVARE = [
     "./", "./index.html", "./style.css", "./admin.css", "./admin.js",
     "./dati-camion.js", "./dati-celle.js", "./dati-fornitori.js", "./dati-pulizie.js", "./dati-azienda.js",
